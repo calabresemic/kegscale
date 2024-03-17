@@ -1,0 +1,107 @@
+substitutions:
+  name: "kegscale"
+  friendly_name: "Kegscale"
+
+dashboard_import:
+  package_import_url: github://calabresemic/kegscale/kegscale-esphome.yaml@main
+  import_full_config: true # or false
+
+esphome:
+  name: ${name}
+  comment: 3D printed keg scales
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: False
+  project: 
+    name: calabresemic.kegscale
+    version: "1.0.0"
+
+esp8266:
+  board: d1_mini
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+
+wifi:
+
+improv_serial:
+
+# This starts the kegscale specific configurations
+
+globals:
+  # This value should represent the scale's value with no weight on it.
+  # NOTE: make sure to align initial_value to the one used in "calibrate_linear" below!
+  - id: initial_zero
+    type: float
+    restore_value: yes
+    initial_value: '330315'
+
+  # This value is used to tare the scale
+  - id: tare_difference
+    type: float
+    restore_value: yes
+    initial_value: '0'
+
+button:
+  # This creates a button to tare the scale
+  - platform: template
+    id: tare_button
+    name: "Tare"
+    icon: mdi:scale-balance
+    on_press:
+      - lambda: |-
+          id(tare_difference) = id(initial_zero) - id(hx711_value_raw).state;
+
+sensor:
+  # This is the scale's raw value it reports
+  # NOTE: set internal to false while calibrating
+  - platform: hx711
+    id: hx711_value_raw
+    name: "HX711 Value"
+    internal: False
+    dout_pin: D4
+    clk_pin: RX
+    gain: 128
+    update_interval: 0.2s
+    filters:
+      - quantile:
+          window_size: 10
+          send_every: 1
+          send_first_at: 1
+          quantile: .9
+    on_value:
+      then:
+        - sensor.template.publish:
+            id: hx711_value
+            state: !lambda 'return id(hx711_value_raw).state;'
+    
+  # This is the scale's value converted to weight
+  - platform: template
+    id: hx711_value
+    name: "Weight"
+    internal: False
+    unit_of_measurement: kg
+    accuracy_decimals: 2
+    # the sensor will automatically update through the 'sensor.template.publish' call
+    update_interval: never
+    filters:
+      # apply the tare difference
+      - lambda: 'return x + id(tare_difference);'
+      # apply rough calibration
+      - calibrate_linear:
+          # retrieve these values by evaluating the raw values with loads of known mass.
+          # note that a bigger difference between measurements usually results in higher resolution,
+          # so measure 0 Kg and the highest known mass you have (like f.ex. your own weight, measured by a normal scale with good accuracy)
+          - 330315 -> 0
+          - 619564 -> 14.2
+      # map values below 0.1 to 0 (to decrease value changes due to random fluctuation)
+      - lambda: |-
+          if (x <= 0.1) {
+            return 0.0;
+          } else {
+            return x;
+          }
