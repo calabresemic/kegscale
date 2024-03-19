@@ -10,7 +10,7 @@ esphome:
   name: ${name}
   comment: 3D printed keg scales
   friendly_name: ${friendly_name}
-  name_add_mac_suffix: False
+  name_add_mac_suffix: True
   project: 
     name: calabresemic.kegscale
     version: "1.0.0"
