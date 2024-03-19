@@ -27,6 +27,11 @@ api:
 ota:
 
 wifi:
+  ap:
+    ssid: "kegscale Fallback Hotspot"
+    password: !secret wifi_ap_password
+
+captive_portal:
 
 improv_serial:
 
